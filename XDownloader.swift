@@ -55,7 +55,10 @@ struct ContentView: View {
             }
 
             HStack {
-                Button(running ? "Downloading…" : "↓ Download") { start() }
+                Button(running ? "DOWNLOADING…" : "↓ DOWNLOAD") { start() }
+                    .fontWeight(.semibold)
+                    .controlSize(.large)
+                    .buttonStyle(.borderedProminent)
                     .disabled(running || account.trimmingCharacters(in: .whitespaces).isEmpty)
 
                 Button("Open folder") {
