@@ -63,6 +63,12 @@ The repository contains only source code, the build script, documentation, Git e
 
 Use the app for content you can access and are authorized to download. This project is independent of X and Google.
 
+## ☕ Support
+
+If X Downloader is useful to you, you can [buy me a coffee](https://buymeacoffee.com/oFJ5CiY7n). Entirely optional, and the app stays exactly as free either way.
+
+<a href="https://buymeacoffee.com/oFJ5CiY7n"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="28"></a>
+
 ## License
 
 Application code is licensed under the [MIT License](LICENSE).
