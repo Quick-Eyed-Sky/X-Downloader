@@ -2,6 +2,10 @@
 
 A small SwiftUI application that downloads media from an X/Twitter account using [gallery-dl](https://github.com/mikf/gallery-dl) and the cookies from a signed-in Chrome session.
 
+⬇️ [Download the ready-to-use app for Apple Silicon](https://github.com/Quick-Eyed-Sky/X-Downloader/releases/latest) (see the **Assets** section of the latest release).
+
+The release is a prebuilt macOS app, so no compilation is needed. It still requires [Homebrew](https://brew.sh) and `gallery-dl` (`brew install gallery-dl`), plus an active X session in Chrome. The app is ad-hoc signed and not notarized; see the release notes for the one-time macOS first-launch step.
+
 ## Features
 
 - Configurable media limit: **8,000 files by default**.
