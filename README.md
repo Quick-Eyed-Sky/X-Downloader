@@ -13,6 +13,7 @@ The release is a prebuilt macOS app, so no compilation is needed. It still requi
 - File names based on post text.
 - Optional removal of exact duplicates using file size and SHA-256 hashes.
 - A progress bar driven by gallery-dl's completed-download events.
+- A prominent **Stop** button to end a run and keep completed downloads; quitting the app also stops its gallery-dl process.
 - Polite pacing: a random 2–5 second pause before each file and 1–2 seconds between extraction requests.
 - Temporary `_raw` files are removed after sorting and duplicate checks succeed; they are retained if post-processing fails.
 - Saved preferences and an activity log.

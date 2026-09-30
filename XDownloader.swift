@@ -17,6 +17,8 @@ struct ContentView: View {
     @ViewState<Int> private var downloaded = 0
     @ViewState<String> private var log = "Ready.\n"
     @ViewState<Bool> private var running = false
+    @ViewState<Bool> private var stopping = false
+    @ViewState<Bool> private var stopRequested = false
     @ViewState<Process?> private var process = nil
 
     var body: some View {
@@ -61,6 +63,13 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(running || account.trimmingCharacters(in: .whitespaces).isEmpty)
 
+                Button(stopping ? "STOPPING…" : "■ STOP") { stopProcess() }
+                    .fontWeight(.semibold)
+                    .controlSize(.large)
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                    .disabled(!running || stopping || process?.isRunning != true)
+
                 Button("Open folder") {
                     NSWorkspace.shared.open(URL(fileURLWithPath: NSString(string: destination).expandingTildeInPath))
                 }
@@ -98,6 +107,8 @@ struct ContentView: View {
         }
         let shouldRemoveDuplicates = removeDuplicates
         running = true
+        stopping = false
+        stopRequested = false
         progress = 0
         downloaded = 0
         log = "Preparing download for @\(account)…\n"
@@ -148,6 +159,7 @@ struct ContentView: View {
 
         let pr = Process()
         process = pr
+        ActiveChildProcess.current = pr
         pr.executableURL = URL(fileURLWithPath: gallery)
         pr.arguments = ["--config-ignore", "--config", configURL.path,
                         "--cookies-from-browser", "chrome", "--no-colors",
@@ -167,6 +179,7 @@ struct ContentView: View {
             append("❌ \(error.localizedDescription)")
             running = false
             process = nil
+            ActiveChildProcess.current = nil
             return
         }
 
@@ -190,7 +203,9 @@ struct ContentView: View {
             }
             pr.waitUntilExit()
             DispatchQueue.main.async {
-                if pr.terminationStatus != 0 {
+                if stopRequested {
+                    append("⏹ Stopped by you. Downloaded files are kept in _raw.")
+                } else if pr.terminationStatus != 0 {
                     append("❌ gallery-dl stopped (code \(pr.terminationStatus)). Check the activity above. Partial files remain in _raw.")
                 } else {
                     append("\n📝 Renaming files…")
@@ -214,9 +229,20 @@ struct ContentView: View {
                     }
                 }
                 running = false
+                stopping = false
+                stopRequested = false
                 process = nil
+                ActiveChildProcess.current = nil
             }
         }
+    }
+
+    func stopProcess() {
+        guard let process, process.isRunning, !stopping else { return }
+        stopRequested = true
+        stopping = true
+        append("Stopping gallery-dl… Completed downloads will be kept in _raw.")
+        process.terminate()
     }
 
     func parseOutput(_ text: String, max: Int) {
@@ -360,8 +386,21 @@ struct ContentView: View {
 
 @main
 struct XDownloaderApp: App {
+    @NSApplicationDelegateAdaptor(AppTerminationHandler.self) private var appTerminationHandler
+
     var body: some Scene {
         WindowGroup { ContentView() }
             .windowResizability(.contentSize)
+    }
+}
+
+private enum ActiveChildProcess {
+    static var current: Process?
+}
+
+private final class AppTerminationHandler: NSObject, NSApplicationDelegate {
+    func applicationWillTerminate(_ notification: Notification) {
+        guard let process = ActiveChildProcess.current, process.isRunning else { return }
+        process.terminate()
     }
 }
