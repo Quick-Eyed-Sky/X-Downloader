@@ -9,9 +9,11 @@ A small SwiftUI application that downloads media from an X/Twitter account using
 - File names based on post text.
 - Optional removal of exact duplicates using file size and SHA-256 hashes.
 - A progress bar driven by gallery-dl's completed-download events.
+- Polite pacing: a random 2–5 second pause before each file and 1–2 seconds between extraction requests.
+- Temporary `_raw` files are removed after sorting and duplicate checks succeed; they are retained if post-processing fails.
 - Saved preferences and an activity log.
 
-Progress measures downloaded files against the requested limit, not a known account total. It stays below 100% during processing and reaches 100% when the job finishes. If fewer media files are available than requested, it may jump to 100% at completion. It pauses while X applies a rate limit. Duplicate removal can reduce the final file count. The limit applies to each run, not to all files already in the destination folder.
+Progress measures downloaded files against the requested limit, not a known account total. It stays below 100% during processing and reaches 100% when the job finishes. If fewer media files are available than requested, it may jump to 100% at completion. gallery-dl honors its rate-limit retry behavior when X responds with a 429, while the app adds pauses between files and extraction requests. This reduces request frequency but cannot guarantee that X will not impose a limit. Duplicate removal can reduce the final file count. The limit applies to each run, not to all files already in the destination folder.
 
 ## Requirements
 
@@ -51,11 +53,9 @@ If the activity log reports **AuthRequired / authenticated cookies needed**:
 
 X restrictions and upstream changes can prevent downloads. Validation covered compilation, opening the window, and local file-processing checks. A real authenticated download has not been tested.
 
-## Crossed-out application icon
+## Application icon and temporary files
 
-An interrupted build could leave an `.app` folder without an executable, which Finder displayed with a crossed-out icon. Version **3.1.1** fixes a conflict between the `State` type and the `State` macro in some SwiftUI SDKs, explicitly sets the macOS deployment target, and builds in a temporary folder to avoid leaving an incomplete app.
-
-Nonzero gallery-dl exit codes are reported as failures. Partial files remain in the destination's `_raw` subfolder, which also contains local configuration and metadata. Do not publish that folder.
+The app uses an original abstract X icon and is not affiliated with X Corp. Version **3.2.0** fixes a conflict between the `State` type and the `State` macro in some SwiftUI SDKs, explicitly sets the macOS deployment target, and builds in a temporary folder to avoid leaving an incomplete app. Nonzero gallery-dl exit codes are reported as failures. Successfully sorted files trigger automatic removal of `_raw`, including its local configuration and metadata. If sorting or duplicate cleanup fails, `_raw` is retained for recovery. Do not publish that folder.
 
 ## Privacy and repository contents
 

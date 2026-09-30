@@ -148,6 +148,7 @@ struct ContentView: View {
         pr.executableURL = URL(fileURLWithPath: gallery)
         pr.arguments = ["--config-ignore", "--config", configURL.path,
                         "--cookies-from-browser", "chrome", "--no-colors",
+                        "--sleep", "2.0-5.0", "--sleep-request", "1.0-2.0",
                         "--Print", "after:XDOWNLOADER_FILE:{tweet_id}_{num}.{extension}",
                         "--range", "1-\(fileLimit)", "https://x.com/\(accountClean)"]
         var environment = ProcessInfo.processInfo.environment
@@ -190,13 +191,24 @@ struct ContentView: View {
                     append("❌ gallery-dl stopped (code \(pr.terminationStatus)). Check the activity above. Partial files remain in _raw.")
                 } else {
                     append("\n📝 Renaming files…")
-                    renameFiles(rawDir: rawDir, finalDir: finalDir, maxFiles: fileLimit)
-                    if shouldRemoveDuplicates {
+                    let sorted = renameFiles(rawDir: rawDir, finalDir: finalDir, maxFiles: fileLimit)
+                    var postProcessingSucceeded = sorted
+                    if sorted && shouldRemoveDuplicates {
                         append("\n🔎 Checking for exact duplicates…")
-                        removeExactDuplicates(in: finalDir)
+                        postProcessingSucceeded = removeExactDuplicates(in: finalDir)
                     }
-                    progress = 1.0
-                    append("\n✅ Finished.")
+                    if postProcessingSucceeded {
+                        do {
+                            try FileManager.default.removeItem(at: rawDir)
+                            append("🧹 Temporary files removed.")
+                            progress = 1.0
+                            append("\n✅ Finished.")
+                        } catch {
+                            append("⚠️ Files are sorted, but temporary files could not be removed: \(error.localizedDescription)")
+                        }
+                    } else {
+                        append("⚠️ Sorting or duplicate cleanup was incomplete. Temporary files were kept in _raw for recovery.")
+                    }
                 }
                 running = false
                 process = nil
@@ -248,34 +260,54 @@ struct ContentView: View {
         return u
     }
 
-    func renameFiles(rawDir: URL, finalDir: URL, maxFiles: Int) {
+    func renameFiles(rawDir: URL, finalDir: URL, maxFiles: Int) -> Bool {
         let fm = FileManager.default
-        try? fm.createDirectory(at: finalDir, withIntermediateDirectories: true)
-        guard let files = try? fm.contentsOfDirectory(at: rawDir, includingPropertiesForKeys: nil) else { return }
+        do { try fm.createDirectory(at: finalDir, withIntermediateDirectories: true) }
+        catch { append("❌ Could not create the destination folder: \(error.localizedDescription)"); return false }
+        guard let files = try? fm.contentsOfDirectory(at: rawDir, includingPropertiesForKeys: nil) else {
+            append("❌ Could not read the temporary download folder.")
+            return false
+        }
         var total = 0
         var moved = 0
+        var failed = false
+        var handled = Set<String>()
         let jsons = files.filter { $0.pathExtension.lowercased() == "json" && $0.lastPathComponent != "_config.json" }
 
         for jf in jsons {
             if total >= maxFiles { break }
             guard let data = try? Data(contentsOf: jf),
-                  let meta = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+                  let meta = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                append("⚠️ Could not read metadata: \(jf.lastPathComponent)")
+                failed = true
+                continue
+            }
             let tweetID = "\(meta["tweet_id"] ?? jf.deletingPathExtension().lastPathComponent)"
             let content = (meta["content"] as? String) ?? (meta["text"] as? String) ?? (meta["full_text"] as? String) ?? ""
             let stem = sanitize(content.isEmpty ? "tweet_\(tweetID)" : content)
             let media = files.filter { $0.lastPathComponent.hasPrefix(tweetID + "_") }
             for (i, src) in media.enumerated() {
                 if total >= maxFiles { break }
+                handled.insert(src.lastPathComponent)
                 let base = media.count > 1 ? "\(stem) \(i+1)" : stem
                 let dest = uniqueURL(finalDir, base, src.pathExtension.lowercased())
                 do {
                     try fm.moveItem(at: src, to: dest)
                     moved += 1; total += 1
                     append("📷 \(dest.lastPathComponent)")
-                } catch { append("⚠️ \(error.localizedDescription)") }
+                } catch { append("⚠️ Could not move \(src.lastPathComponent): \(error.localizedDescription)"); failed = true }
             }
         }
+        let mediaExtensions: Set<String> = ["jpg", "jpeg", "png", "gif", "webp", "mp4", "mov", "m4v"]
+        let remainingMedia = files.filter {
+            mediaExtensions.contains($0.pathExtension.lowercased()) && !handled.contains($0.lastPathComponent)
+        }
+        if !remainingMedia.isEmpty {
+            append("⚠️ \(remainingMedia.count) media file(s) could not be matched to metadata.")
+            failed = true
+        }
         append("✓ \(moved) files renamed.")
+        return !failed
     }
 
     func hash(_ url: URL) -> String? {
@@ -294,11 +326,15 @@ struct ContentView: View {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
-    func removeExactDuplicates(in folder: URL) {
+    func removeExactDuplicates(in folder: URL) -> Bool {
         let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]) else { return }
+        guard let files = try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]) else {
+            append("⚠️ Could not check for duplicates.")
+            return false
+        }
         var seen: [String: URL] = [:]
         var duplicates = 0
+        var failed = false
         for url in files where !url.lastPathComponent.hasPrefix(".") && url.lastPathComponent != "_raw" {
             guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
             let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
@@ -309,12 +345,13 @@ struct ContentView: View {
                     try fm.removeItem(at: url)
                     duplicates += 1
                     append("🗑 Duplicate: \(url.lastPathComponent) (same as \(original.lastPathComponent))")
-                } catch { append("⚠️ \(error.localizedDescription)") }
+                } catch { append("⚠️ Could not remove duplicate \(url.lastPathComponent): \(error.localizedDescription)"); failed = true }
             } else {
                 seen[key] = url
             }
         }
         append("✓ \(duplicates) exact duplicate(s) removed.")
+        return !failed
     }
 }
 

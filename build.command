@@ -26,8 +26,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>io.github.quick-eyed-sky.xdownloader</string>
 <key>CFBundleName</key><string>X Downloader</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>3.1.1</string>
-<key>CFBundleVersion</key><string>311</string>
+<key>CFBundleShortVersionString</key><string>3.2.0</string>
+<key>CFBundleVersion</key><string>320</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
@@ -38,6 +39,8 @@ xcrun swiftc XDownloader.swift -o "$APP/Contents/MacOS/XDownloader" \
     -target "$ARCH-apple-macosx13.0" -swift-version 5 \
     -module-cache-path "$BUILD_DIR/ModuleCache" \
     -framework SwiftUI -framework CryptoKit -parse-as-library
+
+cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 test -x "$APP/Contents/MacOS/XDownloader"
 plutil -lint "$APP/Contents/Info.plist"
